@@ -1,12 +1,15 @@
-const mysql = require('mysql2');
+const mysql = require('mysql');
 
-const pool = mysql.createPool({
+var connection = mysql.createConnection({
   host: 'localhost',
   user: 'root',
-  database: 'sakila',
-  password: 'password'
+  password: 'password',
+  database: 'sakila'
 });
 
-module.exports = pool.promise();
+connection.connect(function(err) {
+  if (err) throw err;
+  console.log('Connected!');
+}); 
 
-// https://stackoverflow.com/questions/37102364/how-do-i-create-a-mysql-connection-pool-while-working-with-nodejs-and-express
+module.exports = connection;

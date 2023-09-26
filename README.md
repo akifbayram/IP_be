@@ -18,11 +18,6 @@ Clone the frontend and backend repositories to the same parent directory:
 git clone https://github.com/akifbayram/IP_be.git IP_be
 ```
 
-### Frontend
-```
-git clone https://github.com/akifbayram/IP_fe.git IP_fe
-```
-
 Navigate to the backend folder and install the required Node.js packages:
 
 ```
@@ -64,8 +59,39 @@ To start the server, navigate to the backend folder and run:
 node server.js
 ```
 
-The server will start on port 3000. Open a web browser and navigate to:
+The server will start on port 3001.
 
-```
-http://localhost:3000
-```
+
+# Individual Project Checklist
+
+## Landing Page
+- [x] View top 5 rented movies of all times.
+- [x] Click on any of the top 5 movies and view its details.
+- [x] View top 5 actors that are part of movies that I have in the store.
+- [x] View the actor’s details and view their top 5 rented movies.
+
+## Movies Page
+- [x] Search a movie by name of film, name of actor, or genre of the film.
+- [x] View details of the film.
+- [ ] Rent out a film to a customer.
+
+## Customers Page
+- [x] View list of customers.
+- [x] Filter/search customers by their customer ID, first name, or last name.
+- [ ] Add new customers that enter the store.
+- [ ] Edit customers' details.
+- [ ] Delete a customer if they no longer wish to patron at store.
+- [x] View customer details and see the movies they have rented out.
+- [ ] Indicate that a customer has returned a rented movie.
+
+## Report Generator
+- [x] Button to generate a PDF report of all customers who rented out movies from store.
+
+---
+
+## Completion Status
+- [x] 10/15 Completed
+
+### Percent Complete: 66.67%
+- Milestone 2 Minimum Completion Requirements: 60%
+- Milestone 3 Minimum Completion Requirements: 100%
