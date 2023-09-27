@@ -138,9 +138,38 @@ app.get("/movies/genres", (req, res) => {
   });
 });
 
-// Endpoint: Fetch all movie categories
+// Endpoint: Fetch all movies
 app.get("/movies/all", (req, res) => {
   db.query("SELECT film.film_id, film.title FROM film", (err, results) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(results);
+  });
+});
+
+// Endpoint: Fetch all actors
+app.get("/actors/all", (req, res) => {
+  db.query("SELECT actor.actor_id, actor.first_name, actor.last_name FROM actor", (err, results) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(results);
+  });
+});
+
+// Endpoint: Fetch list of actors that match whole words in first or last name or actor_id. If no query is provided, fetch all actors
+app.get("/actors/search", (req, res) => {
+  console.log("Fetch list of matching customers endpoint was hit");
+  const query = req.query.q;
+  let sql = "";
+
+  if (query === "") {
+    sql = "SELECT actor_id, first_name, last_name FROM actor";
+  } else {
+    sql = `SELECT actor_id, first_name, last_name FROM actor WHERE first_name LIKE ? OR last_name LIKE ? OR actor_id LIKE ?`;
+  }
+  db.query(sql, [`%${query}%`, `%${query}%`, query], (err, results) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
