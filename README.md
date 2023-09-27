@@ -22,8 +22,7 @@ Navigate to the backend folder and install the required Node.js packages:
 
 ```
 cd IP_be
-npm init
-npm install express
+npm install
 ```
 
 ## Starting the Server
@@ -31,7 +30,7 @@ npm install express
 To start the server, navigate to the backend folder and run:
 
 ```
-node server.js
+node ./server.js
 ```
 
 The server will start on port 3001.
