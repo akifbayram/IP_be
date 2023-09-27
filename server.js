@@ -72,11 +72,16 @@ app.get("/movies/details/:id", (req, res) => {
   console.log("movies/details/:id endpoint was hit");
   const movieId = req.params.id;
   db.query(
-    `SELECT film.title, film.release_year, film.length, film.rating, group_concat(CONCAT(actor.first_name, ' ', actor.last_name)) AS actors 
+    `SELECT film.title, film.release_year, film.length, film.rating, 
+            group_concat(CONCAT(actor.first_name, ' ', actor.last_name)) AS actors,
+            MAX(category.name) AS category
     FROM film 
     LEFT JOIN film_actor ON film.film_id = film_actor.film_id 
     LEFT JOIN actor ON film_actor.actor_id = actor.actor_id 
-    WHERE film.film_id = ? GROUP BY film.film_id`,
+    LEFT JOIN film_category ON film.film_id = film_category.film_id 
+    LEFT JOIN category ON film_category.category_id = category.category_id
+    WHERE film.film_id = ? 
+    GROUP BY film.film_id`,
     [movieId],
     (err, results) => {
       if (err) {
@@ -224,7 +229,7 @@ app.get("/customers/search", (req, res) => {
   if (query === "") {
     sql = "SELECT customer_id, first_name, last_name FROM customer";
   } else {
-    sql = `SELECT customer_id, first_name, last_name FROM customer WHERE first_name LIKE ? OR last_name LIKE ? OR customer_id = ?`;
+    sql = `SELECT customer_id, first_name, last_name FROM customer WHERE first_name LIKE ? OR last_name LIKE ? OR customer_id LIKE ?`;
   }
   db.query(sql, [`%${query}%`, `%${query}%`, query], (err, results) => {
     if (err) {
