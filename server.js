@@ -15,7 +15,6 @@ app.get("/health-check", (req, res) => {
 
 // Endpoint: Database connection check
 app.get("/checkDatabaseConnection", (req, res) => {
-  console.log("checkDatabaseConnection endpoint was hit");
   db.query("SELECT 1", (err, results) => {
     if (err) {
       return res.status(500).json({ error: err.message });
@@ -26,7 +25,6 @@ app.get("/checkDatabaseConnection", (req, res) => {
 
 // Endpoint: Fetch the top movies based on rental count
 app.get("/movies/top", (req, res) => {
-  console.log("movies/top endpoint was hit");
   db.query(
     `
     SELECT film.film_id, film.title, COUNT(rental.rental_id) AS rental_count 
@@ -48,7 +46,6 @@ app.get("/movies/top", (req, res) => {
 
 // Endpoint: Fetch top actors based on the number of films they've acted in
 app.get("/actors/top", (req, res) => {
-  console.log("actors/top endpoint was hit");
   db.query(
     `
     SELECT actor.actor_id, actor.first_name, actor.last_name, COUNT(film_actor.film_id) AS film_count 
@@ -69,7 +66,6 @@ app.get("/actors/top", (req, res) => {
 
 // Endpoint: Fetch detailed information of a specific movie_id
 app.get("/movies/details/:id", (req, res) => {
-  console.log("movies/details/:id endpoint was hit");
   const movieId = req.params.id;
   db.query(
     `SELECT film.title, film.release_year, film.length, film.rating, 
@@ -94,7 +90,6 @@ app.get("/movies/details/:id", (req, res) => {
 
 // Endpoint: Fetch detailed information of a specific actor identified by their ID
 app.get("/actors/details/:id", (req, res) => {
-  console.log("actors/details/:id endpoint was hit");
   const actorId = req.params.id;
 
   db.query(
@@ -160,7 +155,6 @@ app.get("/actors/all", (req, res) => {
 
 // Endpoint: Fetch list of actors that match whole words in first or last name or actor_id. If no query is provided, fetch all actors
 app.get("/actors/search", (req, res) => {
-  console.log("Fetch list of matching customers endpoint was hit");
   const query = req.query.q;
   let sql = "";
 
@@ -186,11 +180,9 @@ app.get("/movies/search", (req, res) => {
   let sqlParams = [];
 
   if (type === "movie_name") {
-    console.log("movie_name search was hit");
     sql = "SELECT film.film_id, film.title FROM film WHERE film.title LIKE ?";
     sqlParams = [`%${query}%`];
   } else if (type === "movie_genre") {
-    console.log("movie_genre search was hit");
     sql = `SELECT film.film_id, film.title 
            FROM film 
            JOIN film_category ON film.film_id = film_category.film_id
@@ -198,7 +190,6 @@ app.get("/movies/search", (req, res) => {
            WHERE category.name = ?`;
     sqlParams = [query];
   } else if (type === "actor_name") {
-    console.log("actor_name search was hit", query);
     sql = `SELECT film.film_id, film.title 
            FROM film 
            JOIN film_actor ON film.film_id = film_actor.film_id
@@ -218,7 +209,6 @@ app.get("/movies/search", (req, res) => {
 
 // Endpoint: Fetch list of all customers
 app.get("/customers", (req, res) => {
-  console.log("Fetch customers endpoint was hit");
   db.query(
     "SELECT customer_id, first_name, last_name FROM customer",
     (err, results) => {
@@ -251,7 +241,6 @@ app.get("/customers/rentals", (req, res) => {
 
 // Endpoint: Fetch list of customers that match whole words in first or last name or customer_id. If no query is provided, fetch all customers
 app.get("/customers/search", (req, res) => {
-  console.log("Fetch list of matching customers endpoint was hit");
   const query = req.query.q;
   let sql = "";
 
@@ -270,7 +259,6 @@ app.get("/customers/search", (req, res) => {
 
 // Endpoint: Fetch all customer details including current rentals
 app.get("/customers/details/:id", (req, res) => {
-  console.log("Fetch customer details endpoint was hit");
   const customerId = req.params.id;
   db.query(
     `SELECT customer_id, first_name, last_name, email, address.address, address.district, address.city_id, address.postal_code, address.phone, city.city, country.country
