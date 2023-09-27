@@ -243,13 +243,16 @@ app.get("/customers/rentals", (req, res) => {
 app.get("/customers/search", (req, res) => {
   const query = req.query.q;
   let sql = "";
+  let params = [];
 
   if (query === "") {
     sql = "SELECT customer_id, first_name, last_name FROM customer";
   } else {
-    sql = `SELECT customer_id, first_name, last_name FROM customer WHERE first_name LIKE ? OR last_name LIKE ? OR customer_id LIKE ?`;
+    sql = `SELECT customer_id, first_name, last_name FROM customer WHERE first_name LIKE ? OR last_name LIKE ? OR customer_id LIKE ? OR CONCAT(first_name, ' ', last_name) LIKE ?`;
+    params = [`%${query}%`, `%${query}%`, query, `%${query}%`];
   }
-  db.query(sql, [`%${query}%`, `%${query}%`, query], (err, results) => {
+
+  db.query(sql, params, (err, results) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
