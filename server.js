@@ -145,12 +145,15 @@ app.get("/movies/all", (req, res) => {
 
 // Endpoint: Fetch all actors
 app.get("/actors/all", (req, res) => {
-  db.query("SELECT actor.actor_id, actor.first_name, actor.last_name FROM actor", (err, results) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
+  db.query(
+    "SELECT actor.actor_id, actor.first_name, actor.last_name FROM actor",
+    (err, results) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json(results);
     }
-    res.json(results);
-  });
+  );
 });
 
 // Endpoint: Fetch list of actors that match whole words in first or last name or actor_id. If no query is provided, fetch all actors
@@ -210,7 +213,7 @@ app.get("/movies/search", (req, res) => {
 // Endpoint: Fetch list of all customers
 app.get("/customers", (req, res) => {
   db.query(
-    "SELECT customer_id, first_name, last_name FROM customer",
+    "SELECT customer_id, first_name, last_name FROM customer WHERE active = 1",
     (err, results) => {
       if (err) {
         return res.status(500).json({ error: err.message });
@@ -220,15 +223,17 @@ app.get("/customers", (req, res) => {
   );
 });
 
+
 // Endpoint: Fetch all customer information along with their rentals
 app.get("/customers/rentals", (req, res) => {
   db.query(
     `SELECT customer.customer_id, customer.first_name, customer.last_name,
             rental.rental_id, rental.rental_date, rental.return_date, film.title
-     FROM customer
+     FROM customer 
      LEFT JOIN rental ON customer.customer_id = rental.customer_id
      LEFT JOIN inventory ON rental.inventory_id = inventory.inventory_id
-     LEFT JOIN film ON inventory.film_id = film.film_id`,
+     LEFT JOIN film ON inventory.film_id = film.film_id
+     WHERE customer.active = 1`, // Only active customers
     [],
     (err, results) => {
       if (err) {
@@ -264,12 +269,14 @@ app.get("/customers/search", (req, res) => {
 app.get("/customers/details/:id", (req, res) => {
   const customerId = req.params.id;
   db.query(
-    `SELECT customer_id, first_name, last_name, email, address.address, address.district, address.city_id, address.postal_code, address.phone, city.city, country.country
-       FROM customer
-       JOIN address ON customer.address_id = address.address_id
-       JOIN city ON address.city_id = city.city_id
-       JOIN country ON city.country_id = country.country_id
-       WHERE customer_id = ?`,
+    `SELECT customer.customer_id, customer.first_name, customer.last_name, customer.email,
+            address.address_id, address.address, address.district, address.city_id, address.phone,
+            city.city, city.country_id, country.country
+     FROM customer
+     JOIN address ON customer.address_id = address.address_id
+     JOIN city ON address.city_id = city.city_id
+     JOIN country ON city.country_id = country.country_id
+     WHERE customer.customer_id = ?`,
     [customerId],
     (err, results) => {
       if (err) {
@@ -287,15 +294,18 @@ app.get("/customers/details/:id", (req, res) => {
         country: results[0]?.country,
         postal_code: results[0]?.postal_code,
         phone: results[0]?.phone,
+        address_id: results[0]?.address_id,
+        city_id: results[0]?.city_id,
+        country_id: results[0]?.country_id,
       };
 
-      db.query(
-        `SELECT film.title, rental.rental_date, rental.return_date
-           FROM customer
-           JOIN rental ON customer.customer_id = rental.customer_id
-           JOIN inventory ON rental.inventory_id = inventory.inventory_id
-           JOIN film ON inventory.film_id = film.film_id
-           WHERE customer.customer_id = ?`,
+      db.query( 
+        `SELECT rental.rental_id, film.title, rental.rental_date, rental.return_date
+         FROM customer
+         JOIN rental ON customer.customer_id = rental.customer_id
+         JOIN inventory ON rental.inventory_id = inventory.inventory_id
+         JOIN film ON inventory.film_id = film.film_id
+         WHERE customer.customer_id = ?`,
         [customerId],
         (err, results) => {
           if (err) {
@@ -303,6 +313,7 @@ app.get("/customers/details/:id", (req, res) => {
           }
 
           customerDetails.rentals = results.map((rental) => ({
+            rental_id: rental.rental_id,  // rental_id
             title: rental.title,
             rental_date: rental.rental_date,
             return_date: rental.return_date,
@@ -316,7 +327,7 @@ app.get("/customers/details/:id", (req, res) => {
 });
 
 // Endpoint: Fetch customer rentals
-app.get("/customers/:id/rentals", (req, res) => {
+app.get("/customers/rentals/:id", (req, res) => {
   const customerId = req.params.id;
   db.query(
     "SELECT * FROM rental WHERE customer_id = ?",
@@ -328,6 +339,76 @@ app.get("/customers/:id/rentals", (req, res) => {
       res.json(results);
     }
   );
+});
+
+app.put("/customers/update/:id", async (req, res) => {
+  const { id: customerId } = req.params;
+  const requiredFields = ["first_name", "last_name", "email", "address", "district", "city", "country", "phone", "address_id", "city_id", "country_id"];
+
+  for (const field of requiredFields) {
+    if (!req.body[field]) return res.status(400).json({ error: `Missing field: ${field}` });
+  }
+
+  try {
+    await db.query("UPDATE customer SET first_name = ?, last_name = ?, email = ? WHERE customer_id = ?", [req.body.first_name, req.body.last_name, req.body.email, customerId]);
+    await db.query("UPDATE address SET address = ?, district = ?, city_id = ?, phone = ? WHERE address_id = ?", [req.body.address, req.body.district, req.body.city_id, req.body.phone, req.body.address_id]);
+    await db.query("UPDATE country SET country = ? WHERE country_id = ?", [req.body.country, req.body.country_id]);
+
+    res.json({ message: "Customer updated successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// Endpoint: Delete a customer by ID
+app.delete("/customers/delete/:id", (req, res) => {
+  const { id } = req.params;
+  db.query(
+    "UPDATE customer SET active = 0 WHERE customer_id = ?",
+    [id],
+    (err, results) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json({ message: "Customer marked as inactive" });
+    }
+  );
+});
+
+// Endpoint: Mark a movie as returned
+app.post("/ /:id", (req, res) => {
+  const rentalId = req.params.id;
+  
+  // Generate current date and time in SQL compatible format
+  const now = new Date();
+  const returnDate = now.toISOString().slice(0, 19).replace('T', ' ');
+
+  db.query(
+    "UPDATE rental SET return_date = ? WHERE rental_id = ?",
+    [returnDate, rentalId],
+    (err, results) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      if (results.affectedRows === 0) {
+        return res.status(404).json({ message: 'Rental not found' });
+      }
+
+      res.json({ message: "Movie marked as returned" });
+    }
+  );
+});
+
+// Endpoint: Fetch all countries
+app.get("/countries", (req, res) => {
+  db.query("SELECT country_id, country FROM country", (err, results) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(results);
+  });
 });
 
 // Starting server, listen to port

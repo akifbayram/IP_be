@@ -71,15 +71,15 @@ Before running the backend server, ensure you have MySQL installed and configure
 - [x] View list of customers.
 - [x] Filter/search customers by their customer ID, first name, or last name.
 - [ ] Add new customers that enter the store.
-- [ ] Edit customers' details.
-- [ ] Delete a customer if they no longer wish to patron at store.
+- [x] Edit customers' details.
+- [x] Delete a customer if they no longer wish to patron at store.
 - [x] View customer details and see the movies they have rented out.
-- [ ] Indicate that a customer has returned a rented movie.
+- [x] Indicate that a customer has returned a rented movie.
 
 ### Report Generator
 - [x] Button to generate a PDF report of all customers who rented out movies from store.
 
 ## Completion Status
-- [x] 10/15 Completed
+- [ ] 13/15 Completed
 
 ### Percent Complete: 66.67%
