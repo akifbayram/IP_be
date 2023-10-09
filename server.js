@@ -68,7 +68,7 @@ app.get("/actors/top", (req, res) => {
 app.get("/movies/details/:id", (req, res) => {
   const movieId = req.params.id;
   db.query(
-    `SELECT film.title, film.release_year, film.length, film.rating, 
+    `SELECT film.film_id, film.title, film.release_year, film.length, film.rating, 
             group_concat(CONCAT(actor.first_name, ' ', actor.last_name)) AS actors,
             MAX(category.name) AS category
     FROM film 
@@ -402,7 +402,7 @@ app.put("/rentals/markAsReturned/:id", (req, res) => {
 });
 
 // Endpoint: Create a new rental
-app.post("/rentals/new", async (req, res) => {
+app.post("/rentals/new", (req, res) => {
   const { film_id, customer_id } = req.body;
 
   // Validate request body
@@ -410,24 +410,39 @@ app.post("/rentals/new", async (req, res) => {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
-  // Generate current date and time in SQL compatible format
-  const now = new Date();
-  const rentalDate = now.toISOString().slice(0, 19).replace('T', ' ');
+  // Get inventory_id related to film_id, assume the first available inventory item
+  db.query(
+    "SELECT inventory_id FROM inventory WHERE film_id = ? LIMIT 1",
+    [film_id],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
 
-  try {
-    // Insert new rental into the rental table
-    const results = await queryAsync(
-      "INSERT INTO rental (rental_date, return_date, customer_id, film_id) VALUES (?, NULL, ?, ?)",
-      [rentalDate, customer_id, film_id]
-    );
+      if (rows.length === 0) {
+        return res.status(400).json({ error: "No inventory available for this film" });
+      }
 
-    res.json({ message: "Rental created successfully", newRentalId: results.insertId });  // Include the new rental ID
+      const inventory_id = rows[0].inventory_id;
 
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+      // Generate current date and time in SQL compatible format
+      const now = new Date();
+      const rentalDate = now.toISOString().slice(0, 19).replace('T', ' ');
+
+      // Insert new rental into the rental table
+      db.query(
+        "INSERT INTO rental (rental_date, inventory_id, customer_id, staff_id) VALUES (?, ?, ?, ?)",
+        [rentalDate, inventory_id, customer_id, 1], // staff_id set to 1
+        (err, results) => {
+          if (err) {
+            return res.status(500).json({ error: err.message });
+          }
+          res.json({ message: "Rental created successfully", newRentalId: results.insertId });
+        }
+      );
+    }
+  );
 });
-
 
 // Endpoint: Fetch all countries
 app.get("/countries", (req, res) => {
@@ -450,13 +465,12 @@ const queryAsync = (sql, params) => new Promise((resolve, reject) => {
 app.post("/customers/add", async (req, res) => {
   const { first_name, last_name, email, address, district, city, country, phone } = req.body;
 
-  // Validate request body
+  // Validate
   if (!first_name || !last_name || !email || !address || !district || !city || !country || !phone) {
     console.log("Missing required fields", req.body);
     return res.status(400).json({ error: "Missing required fields" });
   }
 
-  // Start a transaction
   db.beginTransaction(async (err) => {
     if (err) return res.status(500).json({ error: err.message });
     console.log("Transaction started");
@@ -464,7 +478,6 @@ app.post("/customers/add", async (req, res) => {
     try {
       let results;
             
-      // Use the Promise-based query
       results = await queryAsync("INSERT INTO country (country) VALUES (?)", [country]);
       const countryId = results.insertId;
 
@@ -488,7 +501,6 @@ app.post("/customers/add", async (req, res) => {
         res.json({ message: "Customer added successfully", newCustomerId: results.insertId });  // Include the new customer ID
       });
     } catch (error) {
-      // Rollback the transaction in case of errors
       db.rollback(() => {
         console.log("Transaction failed due to error:", error.message);
         return res.status(500).json({ error: error.message });
@@ -496,7 +508,6 @@ app.post("/customers/add", async (req, res) => {
     }
   });
 });
-
 
 // Starting server, listen to port
 app.listen(PORT, () => {

@@ -65,7 +65,7 @@ Before running the backend server, ensure you have MySQL installed and configure
 ### Movies Page
 - [x] Search a movie by name of film, name of actor, or genre of the film.
 - [x] View details of the film.
-- [ ] Rent out a film to a customer.
+- [x] Rent out a film to a customer.
 
 ### Customers Page
 - [x] View list of customers.
@@ -80,6 +80,6 @@ Before running the backend server, ensure you have MySQL installed and configure
 - [x] Button to generate a PDF report of all customers who rented out movies from store.
 
 ## Completion Status
-- [ ] 14/15 Completed
+- [x] 15/15 Completed
 
-### Percent Complete: 93.33%
+### Percent Complete: 100.00%
