@@ -377,9 +377,9 @@ app.delete("/customers/delete/:id", (req, res) => {
 });
 
 // Endpoint: Mark a movie as returned
-app.post("/ /:id", (req, res) => {
+app.put("/rentals/markAsReturned/:id", (req, res) => {
   const rentalId = req.params.id;
-  
+
   // Generate current date and time in SQL compatible format
   const now = new Date();
   const returnDate = now.toISOString().slice(0, 19).replace('T', ' ');
@@ -401,6 +401,34 @@ app.post("/ /:id", (req, res) => {
   );
 });
 
+// Endpoint: Create a new rental
+app.post("/rentals/new", async (req, res) => {
+  const { film_id, customer_id } = req.body;
+
+  // Validate request body
+  if (!film_id || !customer_id) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  // Generate current date and time in SQL compatible format
+  const now = new Date();
+  const rentalDate = now.toISOString().slice(0, 19).replace('T', ' ');
+
+  try {
+    // Insert new rental into the rental table
+    const results = await queryAsync(
+      "INSERT INTO rental (rental_date, return_date, customer_id, film_id) VALUES (?, NULL, ?, ?)",
+      [rentalDate, customer_id, film_id]
+    );
+
+    res.json({ message: "Rental created successfully", newRentalId: results.insertId });  // Include the new rental ID
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // Endpoint: Fetch all countries
 app.get("/countries", (req, res) => {
   db.query("SELECT country_id, country FROM country", (err, results) => {
@@ -410,6 +438,65 @@ app.get("/countries", (req, res) => {
     res.json(results);
   });
 });
+
+const queryAsync = (sql, params) => new Promise((resolve, reject) => {
+  db.query(sql, params, (err, results) => {
+    if (err) reject(err);
+    else resolve(results);
+  });
+});
+
+// Endpoint: Add a new customer
+app.post("/customers/add", async (req, res) => {
+  const { first_name, last_name, email, address, district, city, country, phone } = req.body;
+
+  // Validate request body
+  if (!first_name || !last_name || !email || !address || !district || !city || !country || !phone) {
+    console.log("Missing required fields", req.body);
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  // Start a transaction
+  db.beginTransaction(async (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    console.log("Transaction started");
+
+    try {
+      let results;
+            
+      // Use the Promise-based query
+      results = await queryAsync("INSERT INTO country (country) VALUES (?)", [country]);
+      const countryId = results.insertId;
+
+      results = await queryAsync("INSERT INTO city (city, country_id) VALUES (?, ?)", [city, countryId]);
+      const cityId = results.insertId;
+
+      // Adding a default location value (Point(0,0))
+      results = await queryAsync("INSERT INTO address (address, district, city_id, phone, location) VALUES (?, ?, ?, ?, Point(0, 0))", [address, district, cityId, phone]);
+      const addressId = results.insertId;
+      
+      results = await queryAsync("INSERT INTO customer (store_id, first_name, last_name, email, address_id) VALUES (1, ?, ?, ?, ?)", [first_name, last_name, email, addressId]);
+      
+      // Commit the transaction
+      db.commit((err) => {
+        if (err) {
+          db.rollback(() => {
+            return res.status(500).json({ error: err.message });
+          });
+        }
+        console.log("Transaction complete");
+        res.json({ message: "Customer added successfully", newCustomerId: results.insertId });  // Include the new customer ID
+      });
+    } catch (error) {
+      // Rollback the transaction in case of errors
+      db.rollback(() => {
+        console.log("Transaction failed due to error:", error.message);
+        return res.status(500).json({ error: error.message });
+      });
+    }
+  });
+});
+
 
 // Starting server, listen to port
 app.listen(PORT, () => {
