@@ -3,6 +3,7 @@ const db = require("./database");
 const app = express();
 const PORT = 3001;
 const cors = require("cors");
+const validator = require("validator");
 
 app.use(express.json());
 app.use(cors());
@@ -66,7 +67,7 @@ app.get("/actors/top", (req, res) => {
 
 // Endpoint: Fetch detailed information of a specific movie_id
 app.get("/movies/details/:id", (req, res) => {
-  const movieId = req.params.id;
+  const movieId = validator.escape(req.params.id);
   db.query(
     `SELECT film.film_id, film.title, film.release_year, film.length, film.rating, 
             group_concat(CONCAT(actor.first_name, ' ', actor.last_name)) AS actors,
@@ -90,7 +91,7 @@ app.get("/movies/details/:id", (req, res) => {
 
 // Endpoint: Fetch detailed information of a specific actor identified by their ID
 app.get("/actors/details/:id", (req, res) => {
-  const actorId = req.params.id;
+  const actorId = validator.escape(req.params.id);
 
   db.query(
     `SELECT actor.first_name, actor.last_name, film.title, COUNT(rental.rental_id) AS rental_count 
@@ -158,7 +159,7 @@ app.get("/actors/all", (req, res) => {
 
 // Endpoint: Fetch list of actors that match whole words in first or last name or actor_id. If no query is provided, fetch all actors
 app.get("/actors/search", (req, res) => {
-  const query = req.query.q;
+  const query = validator.escape(req.query.q || "");
   let sql = "";
 
   if (query === "") {
@@ -174,31 +175,37 @@ app.get("/actors/search", (req, res) => {
   });
 });
 
-// Endpoint: Fetch movies by name, category, or actor based on query
 app.get("/movies/search", (req, res) => {
   const query = req.query.q;
   const type = req.query.type;
+
+  const allowedTypes = ["movie_name", "movie_genre", "actor_name"];
+  if (!allowedTypes.includes(type)) {
+    return res.status(400).json({ error: "Invalid search type" });
+  }
+
+  const sanitizedQuery = query.replace(/[%_]/g, "");
 
   let sql = "";
   let sqlParams = [];
 
   if (type === "movie_name") {
     sql = "SELECT film.film_id, film.title FROM film WHERE film.title LIKE ?";
-    sqlParams = [`%${query}%`];
+    sqlParams = [`%${sanitizedQuery}%`];
   } else if (type === "movie_genre") {
     sql = `SELECT film.film_id, film.title 
            FROM film 
            JOIN film_category ON film.film_id = film_category.film_id
            JOIN category ON film_category.category_id = category.category_id
            WHERE category.name = ?`;
-    sqlParams = [query];
+    sqlParams = [sanitizedQuery];
   } else if (type === "actor_name") {
     sql = `SELECT film.film_id, film.title 
            FROM film 
            JOIN film_actor ON film.film_id = film_actor.film_id
            JOIN actor ON film_actor.actor_id = actor.actor_id
            WHERE actor.first_name LIKE ? AND actor.last_name LIKE ?`;
-    const [firstName, lastName] = query.split(" ");
+    const [firstName, lastName] = sanitizedQuery.split(" ");
     sqlParams = [`%${firstName || ""}%`, `%${lastName || ""}%`];
   }
 
@@ -209,6 +216,7 @@ app.get("/movies/search", (req, res) => {
     res.json(results);
   });
 });
+
 
 // Endpoint: Fetch list of all customers
 app.get("/customers", (req, res) => {
@@ -222,7 +230,6 @@ app.get("/customers", (req, res) => {
     }
   );
 });
-
 
 // Endpoint: Fetch all customer information along with their rentals
 app.get("/customers/rentals", (req, res) => {
@@ -251,9 +258,10 @@ app.get("/customers/search", (req, res) => {
   let params = [];
 
   if (query === "") {
-    sql = "SELECT customer_id, first_name, last_name FROM customer";
+    sql =
+      "SELECT customer_id, first_name, last_name FROM customer WHERE active = 1";
   } else {
-    sql = `SELECT customer_id, first_name, last_name FROM customer WHERE first_name LIKE ? OR last_name LIKE ? OR customer_id LIKE ? OR CONCAT(first_name, ' ', last_name) LIKE ?`;
+    sql = `SELECT customer_id, first_name, last_name FROM customer WHERE active = 1 AND (first_name LIKE ? OR last_name LIKE ? OR customer_id LIKE ? OR CONCAT(first_name, ' ', last_name) LIKE ?)`;
     params = [`%${query}%`, `%${query}%`, query, `%${query}%`];
   }
 
@@ -299,7 +307,7 @@ app.get("/customers/details/:id", (req, res) => {
         country_id: results[0]?.country_id,
       };
 
-      db.query( 
+      db.query(
         `SELECT rental.rental_id, film.title, rental.rental_date, rental.return_date
          FROM customer
          JOIN rental ON customer.customer_id = rental.customer_id
@@ -313,7 +321,7 @@ app.get("/customers/details/:id", (req, res) => {
           }
 
           customerDetails.rentals = results.map((rental) => ({
-            rental_id: rental.rental_id,  // rental_id
+            rental_id: rental.rental_id, // rental_id
             title: rental.title,
             rental_date: rental.rental_date,
             return_date: rental.return_date,
@@ -343,23 +351,50 @@ app.get("/customers/rentals/:id", (req, res) => {
 
 app.put("/customers/update/:id", async (req, res) => {
   const { id: customerId } = req.params;
-  const requiredFields = ["first_name", "last_name", "email", "address", "district", "city", "country", "phone", "address_id", "city_id", "country_id"];
+  const requiredFields = [
+    "first_name",
+    "last_name",
+    "email",
+    "address",
+    "district",
+    "city",
+    "country",
+    "phone",
+    "address_id",
+    "city_id",
+    "country_id",
+  ];
 
   for (const field of requiredFields) {
-    if (!req.body[field]) return res.status(400).json({ error: `Missing field: ${field}` });
+    if (!req.body[field])
+      return res.status(400).json({ error: `Missing field: ${field}` });
   }
 
   try {
-    await db.query("UPDATE customer SET first_name = ?, last_name = ?, email = ? WHERE customer_id = ?", [req.body.first_name, req.body.last_name, req.body.email, customerId]);
-    await db.query("UPDATE address SET address = ?, district = ?, city_id = ?, phone = ? WHERE address_id = ?", [req.body.address, req.body.district, req.body.city_id, req.body.phone, req.body.address_id]);
-    await db.query("UPDATE country SET country = ? WHERE country_id = ?", [req.body.country, req.body.country_id]);
+    await db.query(
+      "UPDATE customer SET first_name = ?, last_name = ?, email = ? WHERE customer_id = ?",
+      [req.body.first_name, req.body.last_name, req.body.email, customerId]
+    );
+    await db.query(
+      "UPDATE address SET address = ?, district = ?, city_id = ?, phone = ? WHERE address_id = ?",
+      [
+        req.body.address,
+        req.body.district,
+        req.body.city_id,
+        req.body.phone,
+        req.body.address_id,
+      ]
+    );
+    await db.query("UPDATE country SET country = ? WHERE country_id = ?", [
+      req.body.country,
+      req.body.country_id,
+    ]);
 
     res.json({ message: "Customer updated successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
-
 
 // Endpoint: Delete a customer by ID
 app.delete("/customers/delete/:id", (req, res) => {
@@ -382,7 +417,7 @@ app.put("/rentals/markAsReturned/:id", (req, res) => {
 
   // Generate current date and time in SQL compatible format
   const now = new Date();
-  const returnDate = now.toISOString().slice(0, 19).replace('T', ' ');
+  const returnDate = now.toISOString().slice(0, 19).replace("T", " ");
 
   db.query(
     "UPDATE rental SET return_date = ? WHERE rental_id = ?",
@@ -393,7 +428,7 @@ app.put("/rentals/markAsReturned/:id", (req, res) => {
       }
 
       if (results.affectedRows === 0) {
-        return res.status(404).json({ message: 'Rental not found' });
+        return res.status(404).json({ message: "Rental not found" });
       }
 
       res.json({ message: "Movie marked as returned" });
@@ -420,14 +455,16 @@ app.post("/rentals/new", (req, res) => {
       }
 
       if (rows.length === 0) {
-        return res.status(400).json({ error: "No inventory available for this film" });
+        return res
+          .status(400)
+          .json({ error: "No inventory available for this film" });
       }
 
       const inventory_id = rows[0].inventory_id;
 
       // Generate current date and time in SQL compatible format
       const now = new Date();
-      const rentalDate = now.toISOString().slice(0, 19).replace('T', ' ');
+      const rentalDate = now.toISOString().slice(0, 19).replace("T", " ");
 
       // Insert new rental into the rental table
       db.query(
@@ -437,7 +474,10 @@ app.post("/rentals/new", (req, res) => {
           if (err) {
             return res.status(500).json({ error: err.message });
           }
-          res.json({ message: "Rental created successfully", newRentalId: results.insertId });
+          res.json({
+            message: "Rental created successfully",
+            newRentalId: results.insertId,
+          });
         }
       );
     }
@@ -454,19 +494,37 @@ app.get("/countries", (req, res) => {
   });
 });
 
-const queryAsync = (sql, params) => new Promise((resolve, reject) => {
-  db.query(sql, params, (err, results) => {
-    if (err) reject(err);
-    else resolve(results);
+const queryAsync = (sql, params) =>
+  new Promise((resolve, reject) => {
+    db.query(sql, params, (err, results) => {
+      if (err) reject(err);
+      else resolve(results); 
+    });
   });
-});
 
 // Endpoint: Add a new customer
 app.post("/customers/add", async (req, res) => {
-  const { first_name, last_name, email, address, district, city, country, phone } = req.body;
+  const first_name = validator.escape(req.body.first_name);
+  const last_name = validator.escape(req.body.last_name);
+  const email = validator.escape(req.body.email);
+  const address = validator.escape(req.body.address);
+  const district = validator.escape(req.body.district);
+  const city = validator.escape(req.body.city);
+  const country = validator.escape(req.body.country);
+  const phone = validator.escape(req.body.phone);
+  
 
   // Validate
-  if (!first_name || !last_name || !email || !address || !district || !city || !country || !phone) {
+  if (
+    !first_name ||
+    !last_name ||
+    !email ||
+    !address ||
+    !district ||
+    !city ||
+    !country ||
+    !phone
+  ) {
     console.log("Missing required fields", req.body);
     return res.status(400).json({ error: "Missing required fields" });
   }
@@ -477,19 +535,30 @@ app.post("/customers/add", async (req, res) => {
 
     try {
       let results;
-            
-      results = await queryAsync("INSERT INTO country (country) VALUES (?)", [country]);
+
+      results = await queryAsync("INSERT INTO country (country) VALUES (?)", [
+        country,
+      ]);
       const countryId = results.insertId;
 
-      results = await queryAsync("INSERT INTO city (city, country_id) VALUES (?, ?)", [city, countryId]);
+      results = await queryAsync(
+        "INSERT INTO city (city, country_id) VALUES (?, ?)",
+        [city, countryId]
+      );
       const cityId = results.insertId;
 
       // Adding a default location value (Point(0,0))
-      results = await queryAsync("INSERT INTO address (address, district, city_id, phone, location) VALUES (?, ?, ?, ?, Point(0, 0))", [address, district, cityId, phone]);
+      results = await queryAsync(
+        "INSERT INTO address (address, district, city_id, phone, location) VALUES (?, ?, ?, ?, Point(0, 0))",
+        [address, district, cityId, phone]
+      );
       const addressId = results.insertId;
-      
-      results = await queryAsync("INSERT INTO customer (store_id, first_name, last_name, email, address_id) VALUES (1, ?, ?, ?, ?)", [first_name, last_name, email, addressId]);
-      
+
+      results = await queryAsync(
+        "INSERT INTO customer (store_id, first_name, last_name, email, address_id) VALUES (1, ?, ?, ?, ?)",
+        [first_name, last_name, email, addressId]
+      );
+
       // Commit the transaction
       db.commit((err) => {
         if (err) {
@@ -498,7 +567,10 @@ app.post("/customers/add", async (req, res) => {
           });
         }
         console.log("Transaction complete");
-        res.json({ message: "Customer added successfully", newCustomerId: results.insertId });  // Include the new customer ID
+        res.json({
+          message: "Customer added successfully",
+          newCustomerId: results.insertId,
+        }); // Include the new customer ID
       });
     } catch (error) {
       db.rollback(() => {
