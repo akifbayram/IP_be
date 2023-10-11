@@ -7,6 +7,7 @@ const validator = require("validator");
 
 app.use(express.json());
 app.use(cors());
+module.exports = app;
 
 // Endpoint: Health check
 app.get("/health-check", (req, res) => {
